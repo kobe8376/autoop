@@ -1,0 +1,22 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>js1</title>
+<script src = "jquery-1.8.3.js"> </script>
+</head>
+<body>
+<div id='id'>12<a>345</a>6</div>
+<input name='username'  type='text' value='5555'/>
+<script>
+var text = $('#id').text();
+var html = $('#id').html();
+console.log(text)
+console.log(html)
+$('#id').text(999)
+var data = $("input[name='username']").val()
+console.log(data)
+$("input[name='username']").attr('name')
+</script>
+</body>
+</html>

@@ -1,0 +1,384 @@
+from django.shortcuts import render, render_to_response
+from models import webuser
+from django.http.response import HttpResponse
+from django.shortcuts import redirect
+from forms import teacher_form,student_form
+import time
+from app.models import sappinfo,Tappinfo
+from sftpmethod import getversion,sendapp,viapp
+
+# Create your views here.
+def login(request):
+    request.session['username'] = None
+    request.session['privilege'] = None
+    ret = {'status':''}
+    if request.method == 'POST':
+        print ('get post')
+        user = request.POST.get('username',None)
+        pwd = request.POST.get('password',None)
+        print (user,pwd)
+        result = webuser.objects.filter(username=user,password=pwd).count()
+        print (result)
+        if result == 1 and user == 'admin':
+            request.session['username'] = user
+            userinformation = webuser.objects.get(username=user)
+            print userinformation
+            request.session['privilege'] = userinformation.privileges
+            print (request.session)
+            return redirect('/getuser/')
+        elif result == 1:
+            request.session['username'] = user
+            userinformation = webuser.objects.get(username=user)
+            request.session['privilege'] = userinformation.privileges
+            return redirect('/normaluser/')
+        else:
+            ret['status'] = 'bad username or password'
+    return render_to_response('login.html',ret)
+    
+def normaluser(request):
+    privi = request.session.get('privilege',None)
+    uname = request.session.get('username',None)
+    if privi == 2:
+        sappinfo_list = sappinfo.objects.all()
+        tappinfo_list = Tappinfo.objects.all()  
+        date = time.strftime('%Y-%m-%d',time.localtime(time.time()))
+        Tform = teacher_form(initial={'Tdate':date})
+        Sform = student_form(initial={'Sdate':date})
+        Udic = {'student_form':Sform,'teacher_form':Tform,'sappinfo_list':sappinfo_list,'tappinfo_list':tappinfo_list,'uname':uname}
+        if request.method == 'POST':
+            Tform = teacher_form(request.POST,request.FILES)
+            Sform = student_form(request.POST,request.FILES)
+            print (Sform)
+            print (Tform)
+            if Tform.is_valid():
+                Tver = Tform.cleaned_data['Tversion']
+                Td = Tform.cleaned_data['Tdate']
+                Teacker_uploaded_file(request.FILES['Tfile'],Tver,Td)
+                print ('Tok')
+                #Udic['Tstatus'] = 'teacher`s app upload finish'
+                return render_to_response('normaluserform.html',Udic)
+            if Sform.is_valid():
+                Sver = Sform.cleaned_data['Sversion']
+                Sd = Sform.cleaned_data['Sdate']
+                Student_uploaded_file(request.FILES['Sfile'],Sver,Sd)
+                print('Sok') 
+                #Udic['Sstatus'] = 'student`s app upload finish'
+                return render_to_response('normaluserform.html',Udic)
+        else:
+            Tform = teacher_form()
+            Sform = student_form()
+        return render_to_response('normaluserform.html',Udic) 
+    else:
+        return redirect('/login/')
+def user(request):
+    privi = request.session.get('privilege',None)
+    uname = request.session.get('username',None)
+    if privi == 1:
+        sappinfo_list = sappinfo.objects.all()
+        tappinfo_list = Tappinfo.objects.all()  
+        date = time.strftime('%Y-%m-%d',time.localtime(time.time()))
+        Tform = teacher_form(initial={'Tdate':date})
+        Sform = student_form(initial={'Sdate':date})
+        Udic = {'student_form':Sform,'teacher_form':Tform,'sappinfo_list':sappinfo_list,'tappinfo_list':tappinfo_list,'uname':uname}
+        tdel = request.POST.get('tdel',None)
+        sdel = request.POST.get('sdel',None)
+        if request.method == 'POST':
+            if tdel != None:
+                Tappinfo.objects.filter(id=tdel).delete()
+                return redirect('/user/')
+            elif sdel != None:
+                sappinfo.objects.filter(id=sdel).delete()
+                return redirect('/user/')
+            else:
+                Tform = teacher_form(request.POST,request.FILES)
+                Sform = student_form(request.POST,request.FILES)
+                print (Sform)
+                print (Tform)
+                if Tform.is_valid():
+                    Tver = Tform.cleaned_data['Tversion']
+                    Td = Tform.cleaned_data['Tdate']
+                    Teacker_uploaded_file(request.FILES['Tfile'],Tver,Td)
+                    print ('Tok')
+                    #Udic['Tstatus'] = 'teacher`s app upload finish'
+                    return render_to_response('userform.html',Udic)
+                if Sform.is_valid():
+                    Sver = Sform.cleaned_data['Sversion']
+                    Sd = Sform.cleaned_data['Sdate']
+                    Student_uploaded_file(request.FILES['Sfile'],Sver,Sd)
+                    print('Sok') 
+                    #Udic['Sstatus'] = 'student`s app upload finish'
+                    return render_to_response('userform.html',Udic)
+        else:
+            Tform = teacher_form()
+            Sform = student_form()
+            
+        return render_to_response('userform.html',Udic)
+    else:
+        return redirect('/login/')
+
+
+def Teacker_uploaded_file(f,d,s):
+    path = "/upload/"
+    f.name = 'LekeTeacher_' + d + '.apk'
+    file_name = path + f.name
+    addfilename = f.name
+    addversion = d
+    adddate = s
+    print(adddate)
+    addpath = file_name
+    adds = Tappinfo(filename=addfilename,version=addversion,createdate=adddate,filepath=addpath)    
+    adds.save()
+    destination = open(file_name, 'wb+')
+    print (file_name)
+    for chunk in f.chunks():
+        destination.write(chunk)
+    destination.close()
+    
+def Student_uploaded_file(f,d,s):
+    path = "/upload/"
+    f.name = 'LekeStudent_' + d + '.apk'
+    file_name = path + f.name
+    addfilename = f.name
+    addversion = d
+    adddate = s
+    print(adddate)
+    addpath = file_name
+    adds = sappinfo(filename=addfilename,version=addversion,createdate=adddate,filepath=addpath)
+    adds.save()
+    destination = open(file_name, 'wb+')
+    print (file_name)
+    for chunk in f.chunks():
+        destination.write(chunk)
+    destination.close()
+
+
+def getuser(request):
+    privi = request.session.get('privilege',None)
+    uname = request.session.get('username',None)
+    if privi == 1:
+        user_list = webuser.objects.all()
+        dic = {'userdata':user_list,'status':None,'uname':uname}
+        result = render_to_response('admin.html',dic)
+        if request.method == 'POST' :
+            deleteid =  request.POST.get('dat',None)
+            if deleteid != None:
+                print deleteid
+                webuser.objects.get(id=deleteid).delete()
+                return redirect('/getuser/')
+            adduser = request.POST.get('adduser',None)
+            addpwd = request.POST.get('addpwd',None)
+            addprivi = request.POST.get('addprivi',None)
+            result = webuser.objects.filter(username=adduser).count()
+            if result == 0 and adduser is not None:
+                usertable = webuser(username=adduser,password=addpwd,privileges=addprivi)
+                usertable.save()
+                return redirect('/getuser/')
+            
+            else:
+                dic = {'userdata':user_list,'status':'the user has been added'}
+                return render_to_response('admin.html',dic)
+        return result
+    else:
+        return redirect('/login/')
+
+def usersend(request):
+    privi = request.session.get('privilege',None)
+    uname = request.session.get('username',None)
+    host2='192.168.200.5'
+    username1='root'
+    password1='123456'
+    comm1='cat  /opt/mobilegateway/conf/mysvr.conf | grep VERSION_0 | awk -F \'=\' \'{print $2}\''
+    comm2='cat  /opt/mobilegateway/conf/mysvr.conf | grep VERSION_1 | awk -F \'=\' \'{print $2}\''
+    getold = getversion()
+    sshd = getold.ssh_connect(host2,username1,password1,comm1,comm2)
+    sftpd = getold.sftp_open(sshd)
+    oldsver = sshd[0][0].split()[0]
+    oldtver = sshd[1][0].split()[0]
+    if privi == 1:
+        sappinfo_list = sappinfo.objects.all()
+        tappinfo_list = Tappinfo.objects.all()
+        sendappdic = {'sappinfo_list':sappinfo_list,'tappinfo_list':tappinfo_list,'uname':uname,'oldsver':oldsver,'oldtver':oldtver}
+        if request.method == 'POST':
+            tsendoldver = request.POST.get('oldtver',None)
+            tsendfile = request.POST.get('tsendfile',None)
+            tsenddate = request.POST.get('tsenddate',None)
+            tsendver = request.POST.get('tsendver',None)
+            ssendfile = request.POST.get('ssendfile',None)
+            ssenddate = request.POST.get('ssenddate',None)
+            ssendver = request.POST.get('ssendver',None)
+            ssendoldver = request.POST.get('oldsver',None)
+            #resulttapp = Tappinfo.objects.filter(filename=tsendfile,createdate=tsenddate).values_list('filepath')
+            #resultsapp = sappinfo.objects.filter(filename=ssendfile,createdate=ssenddate).values_list('filepath')
+            #gateway='/opt/mobilegateway/conf/mysvr.conf'
+            #appcenter='/var/www/html/exSchool/zongxian/appcenter.php'
+            if ssendfile == None and ssenddate == None and ssendver == None:
+                print ("do teacher")
+                tsendapp = sendapp()
+                tviapp1=viapp()
+		tviapp2=viapp()
+                day = tsenddate
+                host1='192.168.200.6'
+                host2='192.168.200.5'
+                usernamex='root'
+                passwordx='temp_1234567'
+                passwordx1='123456'
+                tversion=tsendver
+                toldtversion=tsendoldver
+                comm1='mv /var/www/html/exSchool/zongxian/appcenter/3/LekeTeacher_'+ toldtversion +'.apk /var/www/html/exSchool/zongxian/appcenter/3/LekeTeacher_'+ toldtversion +'.apk$(date +%Y-%m-%d).backup'
+                comm2='sed -i \'198 s/VERSION_1='+ toldtversion +'/VERSION_1='+ tversion + '/g\' /opt/mobilegateway/conf/mysvr.conf'
+                
+		comm3='sed -i \'199 s/'+ toldtversion +'/' + tversion +'/g\' /opt/mobilegateway/conf/mysvr.conf'
+                print (comm2)
+		comm4='sed -i \'24 s/"version":"' + toldtversion + '",/"version":"' + tversion + '",/g\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                comm5='sed -i \'32 s/^.*$/        "updateDate":"' + day + '",/\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                comm6='sed -i \'34 s/' + toldtversion + '/' + tversion + '/g\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                tsshv1 =  tviapp1.ssh_connect(host2,usernamex,passwordx1,comm2)
+                tviapp1.ssh_close(tsshv1)
+		tsshv2 = tviapp2.ssh_connect(host2,usernamex,passwordx1,comm3)
+		tviapp2.ssh_close(tsshv2)
+		sshd = tsendapp.ssh_connect(host1,usernamex,passwordx,comm1,comm4,comm5,comm6)
+                sftpd = tsendapp.sftp_open(sshd)
+                #try:
+                #    tsendapp.sftp_up(sftpd,'D:\\sftp\\LekeTeacher_' + tversion + '.apk','/var/www/html/exSchool/zongxian/appcenter/4/LekeStudent_' + tversion + '.apk')
+                #except Exception,e:
+                #    print ('upload Student`s file failed %s' % e)
+                tsendapp.sftp_up(sftpd,'/upload/LekeTeacher_' + tversion + '.apk','/var/www/html/exSchool/zongxian/appcenter/3/LekeTeacher_' + tversion + '.apk')
+                return redirect('/usersend/')
+            elif tsendfile == None and tsenddate == None and tsendver == None:
+                print ('do student')
+                ssendapp = sendapp()
+                sviapp1=viapp()
+		sviapp2=viapp()
+                day = ssenddate
+                host1='192.168.200.6'
+                host2='192.168.200.5'
+                usernamex='root'
+                passwordx='temp_1234567'
+                passwordx1='123456'
+                sversion=ssendver
+                soldsversion=ssendoldver
+                comm1='mv /var/www/html/exSchool/zongxian/appcenter/4/LekeStudent_'+ soldsversion +'.apk /var/www/html/exSchool/zongxian/appcenter/4/LekeStudent_'+ soldsversion +'.apk$(date +%Y-%m-%d).backup'
+                comm2='sed -i \'193 s/VERSION_0='+ soldsversion +'/VERSION_0=' + sversion + '/g\' /opt/mobilegateway/conf/mysvr.conf'
+                comm3='sed -i \'194 s/'+ soldsversion +'/' + sversion +'/g\' /opt/mobilegateway/conf/mysvr.conf'
+                print (comm2)
+		print (comm3)
+		comm4='sed -i \'41 s/"version":"' + soldsversion + '",/"version":"' + sversion + '",/g\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                comm5='sed -i \'49 s/^.*$/        "updateDate":"' + day + '",/\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                comm6='sed -i \'51 s/' + soldsversion + '/' + sversion + '/g\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                ssshv1 = sviapp1.ssh_connect(host2,usernamex,passwordx1,comm2)
+		sviapp1.ssh_close(ssshv1)
+		ssshv2 = sviapp2.ssh_connect(host2,usernamex,passwordx1,comm3)
+                sviapp2.ssh_close(ssshv2)
+                sshd = ssendapp.ssh_connect(host1,usernamex,passwordx,comm1,comm4,comm5,comm6)
+                sftpd = ssendapp.sftp_open(sshd)
+                try:
+                    ssendapp.sftp_up(sftpd,'/upload/LekeStudent_'+ sversion +'.apk','/var/www/html/exSchool/zongxian/appcenter/4/LekeStudent_'+ sversion +'.apk')
+                except Exception,e:
+                    print ('upload Student`s file failed %s' % e)
+                return redirect('/usersend/')
+        return render_to_response('usersend.html',sendappdic)
+        
+def normalusersend(request):
+    privi = request.session.get('privilege',None)
+    uname = request.session.get('username',None)
+    host2='192.168.200.5'
+    username1='root'
+    password1='123456'
+    comm1='cat  /opt/mobilegateway/conf/mysvr.conf | grep VERSION_0 | awk -F \'=\' \'{print $2}\''
+    comm2='cat  /opt/mobilegateway/conf/mysvr.conf | grep VERSION_1 | awk -F \'=\' \'{print $2}\''
+    getold = getversion()
+    sshd = getold.ssh_connect(host2,username1,password1,comm1)
+    sftpd = getold.sftp_open(sshd)
+    oldsver = sshd[0][0].split()[0]
+    oldtver = sshd[1][0].split()[0]
+    if privi == 2:
+        sappinfo_list = sappinfo.objects.all()
+        tappinfo_list = Tappinfo.objects.all()
+        sendappdic = {'sappinfo_list':sappinfo_list,'tappinfo_list':tappinfo_list,'uname':uname,'oldsver':oldsver,'oldtver':oldtver}
+        if request.method == 'POST':
+            tsendoldver = request.POST.get('oldtver',None)
+            tsendfile = request.POST.get('tsendfile',None)
+            tsenddate = request.POST.get('tsenddate',None)
+            tsendver = request.POST.get('tsendver',None)
+            ssendfile = request.POST.get('ssendfile',None)
+            ssenddate = request.POST.get('ssenddate',None)
+            ssendver = request.POST.get('ssendver',None)
+            ssendoldver = request.POST.get('oldsver',None)
+            #resulttapp = Tappinfo.objects.filter(filename=tsendfile,createdate=tsenddate).values_list('filepath')
+            #resultsapp = sappinfo.objects.filter(filename=ssendfile,createdate=ssenddate).values_list('filepath')
+            #gateway='/opt/mobilegateway/conf/mysvr.conf'
+            #appcenter='/var/www/html/exSchool/zongxian/appcenter.php'
+            if ssendfile == None and ssenddate == None and ssendver == None:
+                print ("do teacher")
+                tsendapp = sendapp()
+                tviapp=viapp()
+                day = tsenddate
+                host1='192.168.200.6'
+                host2='192.168.200.5'
+                usernamex='root'
+                passwordx='temp_1234567'
+                passwordx1='123456'
+                tversion=tsendver
+                oldtversion=tsendoldver
+                comm1='mv /var/www/html/exSchool/zongxian/appcenter/3/LekeTeacher_'+ oldtversion +'.apk /var/www/html/exSchool/zongxian/appcenter/3/LekeTeacher_'+ oldtversion +'.apk$(date +%Y-%m-%d).backup'
+                comm2='sed -i \'198 s/VERSION_1='+ oldtversion +'/VERSION_1='+ tversion + '/g\' /opt/mobilegateway/conf/mysvr.conf'
+                comm3='sed -i \'199 s/LekeTeacher_'+ oldtversion +'.apk/LekeTeacher_' + tversion +'.apk/g\' /opt/mobilegateway/conf/mysvr.conf'
+                comm4='sed -i \'24 s/"version":"' + oldtversion + '",/"version":"' + tversion + '",/g\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                comm5='sed -i \'32 s/^.*$/        "updateDate":"' + day + '",/\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                comm6='sed -i \'34 s/' + oldtversion + '/' + tversion + '/g\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                tviapp.ssh_connect(host2,usernamex,passwordx1,comm2)
+                sshd = tsendapp.ssh_connect(host1,usernamex,passwordx,comm1,comm4,comm5,comm6)
+                sftpd = tsendapp.sftp_open(sshd)
+                #try:
+                #    tsendapp.sftp_up(sftpd,'D:\\sftp\\LekeTeacher_' + tversion + '.apk','/var/www/html/exSchool/zongxian/appcenter/4/LekeStudent_' + tversion + '.apk')
+                #except Exception,e:
+                #    print ('upload Student`s file failed %s' % e)
+                tsendapp.sftp_up(sftpd,'/upload/LekeTeacher_' + tversion + '.apk','/var/www/html/exSchool/zongxian/appcenter/3/LekeTeacher_' + tversion + '.apk')
+                return redirect('/usersend/')
+            elif tsendfile == None and tsenddate == None and tsendver == None:
+                print ('do student')
+                ssendapp = sendapp()
+                sviapp=viapp()
+                day = ssenddate
+                host1='192.168.200.6'
+                host2='192.168.200.5'
+                usernamex='root'
+                passwordx='temp_1234567'
+                passwordx1='123456'
+                sversion=ssendver
+                oldsversion=ssendoldver
+                comm1='mv /var/www/html/exSchool/zongxian/appcenter/4/LekeStudent_'+ oldsversion +'.apk /var/www/html/exSchool/zongxian/appcenter/4/LekeStudent_'+ oldsversion +'.apk$(date +%Y-%m-%d).backup'
+                comm2='sed -i \'193 s/VERSION_0='+ oldsversion +'/VERSION_0=' + sversion + '/g\' /opt/mobilegateway/conf/mysvr.conf/'
+                comm3='sed -i \'194 s/LekeStudent_'+ oldsversion +'.apk/LekeStudent_' + sversion +'.apk/g\' /opt/mobilegateway/conf/mysvr.conf'
+                comm4='sed -i \'41 s/"version":"' + oldsversion + '",/"version":"' + sversion + '",/g\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                comm5='sed -i \'49 s/^.*$/        "updateDate":"' + day + '",/\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                comm6='sed -i \'51 s/' + oldsversion + '/' + sversion + '/g\' /var/www/html/exSchool/zongxian/appcenter/appcenter.php'
+                sviapp.ssh_connect(host2,usernamex,passwordx1,comm2)
+                sshd = ssendapp.ssh_connect(host1,usernamex,passwordx,comm1,comm4,comm5,comm6)
+                sftpd = ssendapp.sftp_open(sshd)
+                try:
+                    ssendapp.sftp_up(sftpd,'/upload/LekeStudent_'+ sversion +'.apk','/var/www/html/exSchool/zongxian/appcenter/4/LekeStudent_'+ sversion +'.apk')
+                except Exception,e:
+                    print ('upload Student`s file failed %s' % e)
+                return redirect('/normalusersend/')
+        return render_to_response('normalusersend.html',sendappdic)
+
+
+def logout(request):
+    try:
+        del request.session['username']
+        del request.session['privilege']
+    except KeyError:
+        pass
+    return render_to_response('login.html')
+
+
+
+
+
+
+
+
+
+
+    

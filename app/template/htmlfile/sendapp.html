@@ -1,0 +1,53 @@
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>sendapp</title>
+<style type="text/css">body {
+	background-color: #0CF;
+}
+</style>
+</head>
+<body>
+<h1>this website will send app to server</h1>
+<br />
+<br />
+<h1>Teacher`s app information in appserver</h1>
+<table id='ttab' border="1" cellpadding="1" bgcolor="#0CF" width="300">
+<tr>
+<td><strong>ID</strong></td>
+<td><strong>Filename</strong></td>
+<td><strong>Version</strong></td>
+<td><strong>Createdate</strong></td>
+<td><strong>Filepath</strong></td>
+</tr>
+{% for item in sappinfo_list %}
+<tr>
+<td>{{item.id}}</td>
+<td>{{item.filename}}</td>
+<td>{{item.version}}</td>
+<td>{{item.createdate}}</td>
+<td>{{item.filepath}}</td>
+</tr>
+{% endfor %}
+</table>
+<h1>Student`s app information in appserver</h1>
+<table id='stab' border="1" cellpadding="1" bgcolor="#0CF" width="300">
+<tr>
+<td><strong>ID</strong></td>
+<td><strong>Filename</strong></td>
+<td><strong>Version</strong></td>
+<td><strong>Createdate</strong></td>
+<td><strong>Filepath</strong></td>
+</tr>
+{% for item in tappinfo_list %}
+<tr>
+<td>{{item.id}}</td>
+<td>{{item.filename}}</td>
+<td>{{item.version}}</td>
+<td>{{item.createdate}}</td>
+<td>{{item.filepath}}</td>
+</tr>
+{% endfor %}
+</table>
+<script>getTdvalue()</script>
+</body>
+</html>
